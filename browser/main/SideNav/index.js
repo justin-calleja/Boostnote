@@ -1,6 +1,7 @@
 import React, { PropTypes } from 'react'
 import { hashHistory } from 'react-router'
 import CSSModules from 'browser/lib/CSSModules'
+import { range } from 'lodash'
 import styles from './SideNav.styl'
 import { openModal } from 'browser/main/lib/modal'
 import PreferencesModal from '../modals/PreferencesModal'
@@ -8,8 +9,9 @@ import ConfigManager from 'browser/main/lib/ConfigManager'
 import StorageItem from './StorageItem'
 import SideNavFilter from 'browser/components/SideNavFilter'
 import { focusSideNav, unfocusSideNav } from 'browser/ducks/focus'
-import { basePaths } from 'browser/lib/utils/paths'
+import { basePaths, parsePathname } from 'browser/lib/utils/paths'
 import movementHandlersInit from './movementHandlers'
+import findStorage from 'browser/lib/utils/findStorage'
 
 const movementHandlers = movementHandlersInit()
 
@@ -44,6 +46,8 @@ class SideNav extends React.Component {
     this.handleBlur = this.handleBlur.bind(this)
     this.handleFocus = this.handleFocus.bind(this)
     this.toggleStorageOpenness = this.toggleStorageOpenness.bind(this)
+    this.closeAllStorages = this.closeAllStorages.bind(this)
+    this.openAllStorages = this.openAllStorages.bind(this)
   }
 
   // TODO: should not use electron stuff v0.7
@@ -82,12 +86,74 @@ class SideNav extends React.Component {
     })
   }
 
+  closeAllStorages () {
+    const { data } = this.props
+    const closedIndices = range(0, data.storageMap.size)
+    this.setState({ closedStorageIndices: new Set(closedIndices) })
+  }
+
+  openAllStorages () {
+    this.setState({ closedStorageIndices: new Set() })
+  }
+
+  closeStorage () {
+    const pathname = this.props.location.pathname
+    parsePathname(pathname).map(({
+      isStoragePathname,
+      isFolderPathname,
+      storageKey
+    }) => {
+      if (isStoragePathname || isFolderPathname) {
+        // If you're on a storage or folder, close the storage if it's open.
+        findStorage(this, storageKey).map(([, { index, isClosed }]) => {
+          if (!isClosed) this.toggleStorageOpenness(index)
+        })
+      }
+      if (isFolderPathname) {
+        // Specifically, if you're on a folder, go to the parent storage.
+        hashHistory.push(basePaths.storages + storageKey)
+      }
+    })
+  }
+
+  openStorage () {
+    const pathname = this.props.location.pathname
+    parsePathname(pathname).map(({
+      isStoragePathname,
+      isFolderPathname,
+      storageKey
+    }) => {
+      if (isStoragePathname || isFolderPathname) {
+        findStorage(this, storageKey).map(([, { index, isClosed }]) => {
+          if (isClosed) this.toggleStorageOpenness(index)
+        })
+      }
+    })
+  }
+
   handleKeyDown (e) {
     e.preventDefault()
     if (e.key === 'ArrowUp' || (e.ctrlKey && e.key === 'p')) {
       movementHandlers.up(this).matchWith(handlePathOrError)
     } else if (e.key === 'ArrowDown' || (e.ctrlKey && e.key === 'n')) {
       movementHandlers.down(this).matchWith(handlePathOrError)
+    } else if (e.shiftKey && e.ctrlKey && (e.key === 'ArrowLeft' || e.key === 'A')) {
+      // CLOSE_ALL_STORAGES
+      // NOTE: this condition is MORE specific than CLOSE_STORAGE so it must
+      // come before it in this chain of if / else expressions.
+      this.closeAllStorages()
+      movementHandlers.currentStorage(this).matchWith(handlePathOrError)
+    } else if (e.shiftKey && e.ctrlKey && (e.key === 'ArrowRight' || e.key === 'E')) {
+      // OPEN_ALL_STORAGES
+      // NOTE: this condition is MORE specific than OPEN_STORAGE so it must
+      // come before it in this chain of if / else expressions.
+      this.openAllStorages()
+    } else if ((e.shiftKey && e.key === 'ArrowLeft') || (e.ctrlKey && e.key === 'a')) {
+      // CLOSE_STORAGE
+      this.closeStorage()
+    } else if ((e.shiftKey && e.key === 'ArrowRight') || (e.ctrlKey && e.key === 'e')) {
+      // OPEN_STORAGE
+      this.openStorage()
     }
   }
 
