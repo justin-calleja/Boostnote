@@ -37,50 +37,74 @@ const TagElementList = (tags) => {
 /**
  * @description Note item component when using normal display mode.
  * @param {boolean} isActive
+ * @param {boolean} isFocused
  * @param {Object} note
  * @param {Function} handleNoteClick
  * @param {Function} handleNoteContextMenu
  * @param {string} dateDisplay
  */
-const NoteItem = ({ isActive, note, dateDisplay, handleNoteClick, handleNoteContextMenu }) => (
-  <div styleName={isActive
-      ? 'item--active'
-      : 'item'
-    }
-    key={`${note.storage}-${note.key}`}
-    onClick={e => handleNoteClick(e, `${note.storage}-${note.key}`)}
-    onContextMenu={e => handleNoteContextMenu(e, `${note.storage}-${note.key}`)}
-  >
-    <div styleName='item-wrapper'>
-      {note.type === 'SNIPPET_NOTE'
-        ? <i styleName='item-title-icon' className='fa fa-fw fa-code' />
-        : <i styleName='item-title-icon' className='fa fa-fw fa-file-text-o' />
-      }
-      <div styleName='item-title'>
-        {note.title.trim().length > 0
-          ? note.title
-          : <span styleName='item-title-empty'>Empty</span>
-        }
-      </div>
+class NoteItem extends React.Component {
+  componentDidMount () {
+    // Need to set tabIndex or focus will not work on a <div>
+    this.rootEl.tabIndex = '-1'
+  }
 
-      <div styleName='item-bottom-time'>{dateDisplay}</div>
-      {note.isStarred
-        ? <i styleName='item-star' className='fa fa-star' /> : ''
-      }
-      <div styleName='item-bottom'>
-        <div styleName='item-bottom-tagList'>
-          {note.tags.length > 0
-            ? TagElementList(note.tags)
-            : <span styleName='item-bottom-tagList-empty' />
+  componentDidUpdate () {
+    if (this.props.isFocused) {
+      this.rootEl.focus()
+    }
+  }
+
+  render () {
+    const { isActive, isFocused, note, dateDisplay, handleNoteClick, handleNoteContextMenu, handleKeyDown } = this.props
+
+    const styleName = isFocused
+      ? 'item--active-focused'
+      : isActive ? 'item--active' : 'item'
+
+    return (
+      <div styleName={styleName}
+        key={`${note.storage}-${note.key}`}
+        onClick={e => handleNoteClick(e, `${note.storage}-${note.key}`)}
+        onContextMenu={e => handleNoteContextMenu(e, `${note.storage}-${note.key}`)}
+        onKeyDown={handleKeyDown}
+        ref={rootEl => {
+          this.rootEl = rootEl
+        }}
+      >
+        <div styleName='item-wrapper'>
+          {note.type === 'SNIPPET_NOTE'
+            ? <i styleName='item-title-icon' className='fa fa-fw fa-code' />
+            : <i styleName='item-title-icon' className='fa fa-fw fa-file-text-o' />
           }
+          <div styleName='item-title'>
+            {note.title.trim().length > 0
+              ? note.title
+              : <span styleName='item-title-empty'>Empty</span>
+            }
+          </div>
+
+          <div styleName='item-bottom-time'>{dateDisplay}</div>
+          {note.isStarred
+            ? <i styleName='item-star' className='fa fa-star' /> : ''
+          }
+          <div styleName='item-bottom'>
+            <div styleName='item-bottom-tagList'>
+              {note.tags.length > 0
+                ? TagElementList(note.tags)
+                : <span styleName='item-bottom-tagList-empty' />
+              }
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  </div>
-)
+    )
+  }
+}
 
 NoteItem.propTypes = {
   isActive: PropTypes.bool.isRequired,
+  isFocused: PropTypes.bool.isRequired,
   dateDisplay: PropTypes.string.isRequired,
   note: PropTypes.shape({
     storage: PropTypes.string.isRequired,
@@ -91,7 +115,8 @@ NoteItem.propTypes = {
     isStarred: PropTypes.bool.isRequired
   }),
   handleNoteClick: PropTypes.func.isRequired,
-  handleNoteContextMenu: PropTypes.func.isRequired
+  handleNoteContextMenu: PropTypes.func.isRequired,
+  handleKeyDown: PropTypes.func.isRequired
 }
 
 export default CSSModules(NoteItem, styles)

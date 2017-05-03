@@ -8,34 +8,58 @@ import styles from './NoteItemSimple.styl'
 /**
  * @description Note item component when using simple display mode.
  * @param {boolean} isActive
+ * @param {boolean} isFocused
  * @param {Object} note
  * @param {Function} handleNoteClick
  * @param {Function} handleNoteContextMenu
  */
-const NoteItemSimple = ({ isActive, note, handleNoteClick, handleNoteContextMenu }) => (
-  <div styleName={isActive
-      ? 'item-simple--active'
-      : 'item-simple'
+class NoteItemSimple extends React.Component {
+  componentDidMount () {
+    // Need to set tabIndex or focus will not work on a <div>
+    this.rootEl.tabIndex = '-1'
+  }
+
+  componentDidUpdate () {
+    if (this.props.isFocused) {
+      this.rootEl.focus()
     }
-    key={`${note.storage}-${note.key}`}
-    onClick={e => handleNoteClick(e, `${note.storage}-${note.key}`)}
-    onContextMenu={e => handleNoteContextMenu(e, `${note.storage}-${note.key}`)}
-  >
-    <div styleName='item-simple-title'>
-      {note.type === 'SNIPPET_NOTE'
-        ? <i styleName='item-simple-title-icon' className='fa fa-fw fa-code' />
-        : <i styleName='item-simple-title-icon' className='fa fa-fw fa-file-text-o' />
-      }
-      {note.title.trim().length > 0
-        ? note.title
-        : <span styleName='item-simple-title-empty'>Empty</span>
-      }
-    </div>
-  </div>
-)
+  }
+
+  render () {
+    const { isActive, isFocused, note, handleNoteClick, handleNoteContextMenu, handleKeyDown } = this.props
+
+    const styleName = isFocused
+      ? 'item-simple--active-focused'
+      : isActive ? 'item-simple--active' : 'item-simple'
+
+    return (
+      <div styleName={styleName}
+        key={`${note.storage}-${note.key}`}
+        onClick={e => handleNoteClick(e, `${note.storage}-${note.key}`)}
+        onContextMenu={e => handleNoteContextMenu(e, `${note.storage}-${note.key}`)}
+        onKeyDown={handleKeyDown}
+        ref={rootEl => {
+          this.rootEl = rootEl
+        }}
+      >
+        <div styleName='item-simple-title'>
+          {note.type === 'SNIPPET_NOTE'
+            ? <i styleName='item-simple-title-icon' className='fa fa-fw fa-code' />
+            : <i styleName='item-simple-title-icon' className='fa fa-fw fa-file-text-o' />
+          }
+          {note.title.trim().length > 0
+            ? note.title
+            : <span styleName='item-simple-title-empty'>Empty</span>
+          }
+        </div>
+      </div>
+    )
+  }
+}
 
 NoteItemSimple.propTypes = {
   isActive: PropTypes.bool.isRequired,
+  isFocused: PropTypes.bool.isRequired,
   note: PropTypes.shape({
     storage: PropTypes.string.isRequired,
     key: PropTypes.string.isRequired,
@@ -43,7 +67,8 @@ NoteItemSimple.propTypes = {
     title: PropTypes.string.isrequired
   }),
   handleNoteClick: PropTypes.func.isRequired,
-  handleNoteContextMenu: PropTypes.func.isRequired
+  handleNoteContextMenu: PropTypes.func.isRequired,
+  handleKeyDown: PropTypes.func.isRequired
 }
 
 export default CSSModules(NoteItemSimple, styles)
