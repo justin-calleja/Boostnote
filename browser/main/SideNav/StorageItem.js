@@ -7,6 +7,7 @@ import CreateFolderModal from 'browser/main/modals/CreateFolderModal'
 import RenameFolderModal from 'browser/main/modals/RenameFolderModal'
 import dataApi from 'browser/main/lib/dataApi'
 import StorageItemChild from 'browser/components/StorageItem'
+import { basePaths } from 'browser/lib/utils/paths'
 
 const { remote } = require('electron')
 const { Menu, MenuItem, dialog } = remote
@@ -15,8 +16,20 @@ class StorageItem extends React.Component {
   constructor (props) {
     super(props)
 
-    this.state = {
-      isOpen: true
+    this.handleToggleButtonClick = this.handleToggleButtonClick.bind(this)
+    this.handleHeaderInfoClick = this.handleHeaderInfoClick.bind(this)
+    this.handleHeaderContextMenu = this.handleHeaderContextMenu.bind(this)
+    this.handleAddFolderButtonClick = this.handleAddFolderButtonClick.bind(this)
+    this.folderToStorageItemChild = this.folderToStorageItemChild.bind(this)
+  }
+
+  componentDidUpdate () {
+    const { location, storage, focus } = this.props
+
+    const isActive = !!(location.pathname === basePaths.storages + storage.key)
+    const isFocused = isActive && focus.sideNav
+    if (isFocused) {
+      this.button.focus()
     }
   }
 
@@ -59,10 +72,8 @@ class StorageItem extends React.Component {
     }
   }
 
-  handleToggleButtonClick (e) {
-    this.setState({
-      isOpen: !this.state.isOpen
-    })
+  handleToggleButtonClick () {
+    this.props.toggleStorageOpenness(this.props.index)
   }
 
   handleAddFolderButtonClick (e) {
@@ -131,46 +142,53 @@ class StorageItem extends React.Component {
     }
   }
 
+  folderToStorageItemChild (folder) {
+    const { storage, location, isFolded, data, focus, handleKeyDown } = this.props
+    const { folderNoteMap } = data
+
+    const isActive = !!(location.pathname === basePaths.storages + storage.key + basePaths.folders + folder.key)
+    const noteSet = folderNoteMap.get(storage.key + '-' + folder.key)
+    const isFocused = isActive && focus.sideNav
+    const noteCount = noteSet != null ? noteSet.size : 0
+
+    return (
+      <StorageItemChild
+        key={folder.key}
+        isActive={isActive}
+        isFocused={isFocused}
+        handleButtonClick={this.handleFolderButtonClick(folder.key)}
+        handleContextMenu={(e) => this.handleFolderButtonContextMenu(e, folder)}
+        folderName={folder.name}
+        folderColor={folder.color}
+        isFolded={isFolded}
+        noteCount={noteCount}
+        handleKeyDown={handleKeyDown}
+      />
+    )
+  }
+
   render () {
-    let { storage, location, isFolded, data } = this.props
-    let { folderNoteMap } = data
-    let folderList = storage.folders.map((folder) => {
-      let isActive = !!(location.pathname.match(new RegExp('\/storages\/' + storage.key + '\/folders\/' + folder.key)))
-      let noteSet = folderNoteMap.get(storage.key + '-' + folder.key)
+    const { storage, location, isFolded, focus, handleKeyDown, isOpen } = this.props
 
-      let noteCount = noteSet != null
-        ? noteSet.size
-        : 0
-      return (
-        <StorageItemChild
-          key={folder.key}
-          isActive={isActive}
-          handleButtonClick={(e) => this.handleFolderButtonClick(folder.key)(e)}
-          handleContextMenu={(e) => this.handleFolderButtonContextMenu(e, folder)}
-          folderName={folder.name}
-          folderColor={folder.color}
-          isFolded={isFolded}
-          noteCount={noteCount}
-        />
-      )
-    })
+    const folderList = storage.folders.map(this.folderToStorageItemChild)
 
-    let isActive = location.pathname.match(new RegExp('\/storages\/' + storage.key + '$'))
+    const isActive = !!(location.pathname === '/storages/' + storage.key)
+    const isFocused = isActive && focus.sideNav
+    const styleName = isFocused
+      ? 'header--active-focused'
+      : isActive ? 'header--active' : 'header'
 
     return (
       <div styleName={isFolded ? 'root--folded' : 'root'}
         key={storage.key}
       >
-        <div styleName={isActive
-            ? 'header--active'
-            : 'header'
-          }
-          onContextMenu={(e) => this.handleHeaderContextMenu(e)}
+        <div styleName={styleName}
+          onContextMenu={this.handleHeaderContextMenu}
         >
           <button styleName='header-toggleButton'
-            onMouseDown={(e) => this.handleToggleButtonClick(e)}
+            onMouseDown={this.handleToggleButtonClick}
           >
-            <i className={this.state.isOpen
+            <i className={isOpen
                 ? 'fa fa-caret-down'
                 : 'fa fa-caret-right'
               }
@@ -179,14 +197,16 @@ class StorageItem extends React.Component {
 
           {!isFolded &&
             <button styleName='header-addFolderButton'
-              onClick={(e) => this.handleAddFolderButtonClick(e)}
+              onClick={this.handleAddFolderButtonClick}
             >
               <i className='fa fa-plus' />
             </button>
           }
 
           <button styleName='header-info'
-            onClick={(e) => this.handleHeaderInfoClick(e)}
+            onClick={this.handleHeaderInfoClick}
+            ref={button => { this.button = button }}
+            onKeyDown={handleKeyDown}
           >
             <span styleName='header-info-name'>
               {isFolded ? storage.name.substring(0, 1) : storage.name}
@@ -198,7 +218,7 @@ class StorageItem extends React.Component {
             }
           </button>
         </div>
-        {this.state.isOpen &&
+        {isOpen &&
           <div styleName='folderList' >
             {folderList}
           </div>
@@ -209,7 +229,12 @@ class StorageItem extends React.Component {
 }
 
 StorageItem.propTypes = {
-  isFolded: PropTypes.bool
+  isFolded: PropTypes.bool,
+  focus: PropTypes.object,
+  handleKeyDown: PropTypes.func,
+  toggleStorageOpenness: PropTypes.func,
+  isOpen: PropTypes.bool,
+  index: PropTypes.number
 }
 
 export default CSSModules(StorageItem, styles)
