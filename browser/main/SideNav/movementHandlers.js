@@ -291,6 +291,20 @@ export default ({
           return Result.Error(new Error(`Don't know how to move down from pathname '${pathname}'`))
         }
       })
+    },
+    currentStorage (component) {
+      const pathname = component.props.location.pathname
+      return parsePathname(pathname).chain(({
+        isStoragePathname,
+        isFolderPathname,
+        storageKey
+      }) => {
+        if (isStoragePathname || isFolderPathname) {
+          return Result.Ok(basePaths.storages + storageKey)
+        }
+        return Result.Error(`Cannot go to current storage if the current ` +
+          `pathname (${pathname}) is not for a storage or folder.`)
+      })
     }
   }
 
