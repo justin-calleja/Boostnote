@@ -3,6 +3,7 @@ import { routerReducer } from 'react-router-redux'
 import ConfigManager from 'browser/main/lib/ConfigManager'
 import { Map, Set } from 'browser/lib/Mutable'
 import focus from 'browser/ducks/focus'
+import mainProcessArgs from 'browser/lib/utils/mainProcessArgs'
 import _ from 'lodash'
 
 function defaultDataMap () {
@@ -498,6 +499,8 @@ const reducer = combineReducers({
   routing: routerReducer
 })
 
-const store = createStore(reducer)
+const store = mainProcessArgs.includes('--hot')
+ ? createStore(reducer, window.__REDUX_DEVTOOLS_EXTENSION__ && window.__REDUX_DEVTOOLS_EXTENSION__())
+ : createStore(reducer)
 
 export default store
