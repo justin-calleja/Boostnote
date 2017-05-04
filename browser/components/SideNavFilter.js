@@ -15,8 +15,9 @@ import styles from './SideNavFilter.styl'
  */
 class SideNavFilter extends React.Component {
   componentDidUpdate () {
-    const { isHomeActive, isStarredActive, focus } = this.props
-    if (focus.sideNav) {
+    const { isHomeActive, isStarredActive, sideNavIsFocused } = this.props
+
+    if (sideNavIsFocused) {
       if (isHomeActive) return this.homeButton.focus()
       if (isStarredActive) return this.starredButton.focus()
     }
@@ -24,7 +25,7 @@ class SideNavFilter extends React.Component {
 
   render () {
     const {
-      focus,
+      sideNavIsFocused,
       isFolded,
       isHomeActive,
       handleAllNotesButtonClick,
@@ -33,10 +34,10 @@ class SideNavFilter extends React.Component {
       handleKeyDown
     } = this.props
 
-    const homeStyleName = isHomeActive && focus.sideNav
+    const homeStyleName = isHomeActive && sideNavIsFocused
       ? 'menu-button--active-focused'
       : isHomeActive ? 'menu-button--active' : 'menu-button'
-    const starredStyleName = isStarredActive && focus.sideNav
+    const starredStyleName = isStarredActive && sideNavIsFocused
       ? 'menu-button-star--active-focused'
       : isStarredActive ? 'menu-button-star--active' : 'menu-button'
 
@@ -64,7 +65,7 @@ class SideNavFilter extends React.Component {
 }
 
 SideNavFilter.propTypes = {
-  focus: PropTypes.object,
+  sideNavIsFocused: PropTypes.bool,
   isFolded: PropTypes.bool,
   isHomeActive: PropTypes.bool.isRequired,
   handleAllNotesButtonClick: PropTypes.func.isRequired,

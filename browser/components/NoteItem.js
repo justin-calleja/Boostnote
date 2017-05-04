@@ -56,7 +56,15 @@ class NoteItem extends React.Component {
   }
 
   render () {
-    const { isActive, isFocused, note, dateDisplay, handleNoteClick, handleNoteContextMenu, handleKeyDown } = this.props
+    const {
+      isActive,
+      isFocused,
+      note,
+      dateDisplay,
+      handleNoteClick,
+      handleNoteContextMenu,
+      handleKeyDown
+    } = this.props
 
     const styleName = isFocused
       ? 'item--active-focused'
@@ -104,7 +112,7 @@ class NoteItem extends React.Component {
 
 NoteItem.propTypes = {
   isActive: PropTypes.bool.isRequired,
-  isFocused: PropTypes.bool.isRequired,
+  isFocused: PropTypes.bool,
   dateDisplay: PropTypes.string.isRequired,
   note: PropTypes.shape({
     storage: PropTypes.string.isRequired,

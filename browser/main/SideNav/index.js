@@ -169,7 +169,7 @@ class SideNav extends React.Component {
   }
 
   render () {
-    const { data, location, config, focus } = this.props
+    const { data, location, config, sideNavIsFocused } = this.props
 
     const isFolded = config.isSideNavFolded
     const isHomeActive = !!location.pathname.match('^' + basePaths.home + '$')
@@ -181,7 +181,7 @@ class SideNav extends React.Component {
         index={index}
         handleKeyDown={this.handleKeyDown}
         toggleStorageOpenness={this.toggleStorageOpenness}
-        focus={focus}
+        sideNavIsFocused={sideNavIsFocused}
         storage={storage}
         data={data}
         location={location}
@@ -216,7 +216,7 @@ class SideNav extends React.Component {
           isStarredActive={isStarredActive}
           handleStarredButtonClick={this.handleStarredButtonClick}
           handleKeyDown={this.handleKeyDown}
-          focus={focus}
+          sideNavIsFocused={sideNavIsFocused}
         />
 
         <div styleName='storageList'>
@@ -247,7 +247,7 @@ SideNav.propTypes = {
   config: PropTypes.shape({
     isSideNavFolded: PropTypes.bool
   }),
-  focus: PropTypes.object,
+  sideNavIsFocused: PropTypes.bool,
   location: PropTypes.shape({
     pathname: PropTypes.string
   })

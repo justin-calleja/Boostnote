@@ -159,9 +159,9 @@ class Main extends React.Component {
             'dispatch',
             'data',
             'config',
-            'focus',
             'location'
           ])}
+          sideNavIsFocused={this.props.focus.sideNav}
           width={this.state.navWidth}
         />
         {!config.isSideNavFolded &&
@@ -195,6 +195,7 @@ class Main extends React.Component {
               'focus',
               'location'
             ])}
+            noteListIsFocused={this.props.focus.noteList}
           />
           <div styleName={this.state.isRightSliderFocused ? 'slider-right--active' : 'slider-right'}
             style={{left: this.state.listWidth - 1}}
@@ -229,6 +230,7 @@ Main.childContextTypes = {
 
 Main.propTypes = {
   dispatch: PropTypes.func,
+  focus: PropTypes.object,
   data: PropTypes.shape({}).isRequired
 }
 

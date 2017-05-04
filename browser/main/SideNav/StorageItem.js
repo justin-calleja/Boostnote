@@ -24,10 +24,10 @@ class StorageItem extends React.Component {
   }
 
   componentDidUpdate () {
-    const { location, storage, focus } = this.props
+    const { location, storage, sideNavIsFocused } = this.props
 
     const isActive = !!(location.pathname === basePaths.storages + storage.key)
-    const isFocused = isActive && focus.sideNav
+    const isFocused = isActive && sideNavIsFocused
     if (isFocused) {
       this.button.focus()
     }
@@ -143,19 +143,18 @@ class StorageItem extends React.Component {
   }
 
   folderToStorageItemChild (folder) {
-    const { storage, location, isFolded, data, focus, handleKeyDown } = this.props
+    const { storage, location, isFolded, data, sideNavIsFocused, handleKeyDown } = this.props
     const { folderNoteMap } = data
 
     const isActive = !!(location.pathname === basePaths.storages + storage.key + basePaths.folders + folder.key)
     const noteSet = folderNoteMap.get(storage.key + '-' + folder.key)
-    const isFocused = isActive && focus.sideNav
     const noteCount = noteSet != null ? noteSet.size : 0
 
     return (
       <StorageItemChild
         key={folder.key}
         isActive={isActive}
-        isFocused={isFocused}
+        isFocused={isActive && sideNavIsFocused}
         handleButtonClick={this.handleFolderButtonClick(folder.key)}
         handleContextMenu={(e) => this.handleFolderButtonContextMenu(e, folder)}
         folderName={folder.name}
@@ -168,12 +167,12 @@ class StorageItem extends React.Component {
   }
 
   render () {
-    const { storage, location, isFolded, focus, handleKeyDown, isOpen } = this.props
+    const { storage, location, isFolded, sideNavIsFocused, handleKeyDown, isOpen } = this.props
 
     const folderList = storage.folders.map(this.folderToStorageItemChild)
 
     const isActive = !!(location.pathname === '/storages/' + storage.key)
-    const isFocused = isActive && focus.sideNav
+    const isFocused = isActive && sideNavIsFocused
     const styleName = isFocused
       ? 'header--active-focused'
       : isActive ? 'header--active' : 'header'
@@ -230,7 +229,7 @@ class StorageItem extends React.Component {
 
 StorageItem.propTypes = {
   isFolded: PropTypes.bool,
-  focus: PropTypes.object,
+  sideNavIsFocused: PropTypes.bool,
   handleKeyDown: PropTypes.func,
   toggleStorageOpenness: PropTypes.func,
   isOpen: PropTypes.bool,

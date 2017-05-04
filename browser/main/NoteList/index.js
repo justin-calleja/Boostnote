@@ -354,7 +354,7 @@ class NoteList extends React.Component {
 
   render () {
     let { notes } = this.props
-    const { location, config, focus } = this.props
+    const { location, config, noteListIsFocused } = this.props
 
     const sortFunc = config.sortBy === 'CREATED_AT'
       ? sortByCreatedAt
@@ -372,7 +372,6 @@ class NoteList extends React.Component {
 
         const isDefault = config.listStyle === 'DEFAULT'
         const isActive = location.query.key === note.storage + '-' + note.key
-        const isFocused = isActive && focus.noteList
         const dateDisplay = moment(
           config.sortBy === 'CREATED_AT'
             ? note.createdAt : note.updatedAt
@@ -383,7 +382,7 @@ class NoteList extends React.Component {
           return (
             <NoteItem
               isActive={isActive}
-              isFocused={isFocused}
+              isFocused={isActive && noteListIsFocused}
               handleKeyDown={this.handleKeyDown}
               note={note}
               dateDisplay={dateDisplay}
@@ -397,7 +396,7 @@ class NoteList extends React.Component {
         return (
           <NoteItemSimple
             isActive={isActive}
-            isFocused={isFocused}
+            isFocused={isActive && noteListIsFocused}
             handleKeyDown={this.handleKeyDown}
             note={note}
             key={key}
@@ -458,6 +457,7 @@ NoteList.contextTypes = {
 }
 
 NoteList.propTypes = {
+  noteListIsFocused: PropTypes.bool,
   dispatch: PropTypes.func,
   repositories: PropTypes.array,
   style: PropTypes.shape({
