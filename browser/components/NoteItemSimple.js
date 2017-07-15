@@ -11,7 +11,7 @@ import styles from './NoteItemSimple.styl'
  * @param {boolean} isFocused
  * @param {Object} note
  * @param {Function} handleNoteClick
- * @param {Function} handleNoteContextMenu
+ * @param {Function} handleDragStart
  */
 class NoteItemSimple extends React.Component {
   componentDidMount () {
@@ -32,7 +32,8 @@ class NoteItemSimple extends React.Component {
       note,
       handleNoteClick,
       handleNoteContextMenu,
-      handleKeyDown
+      handleKeyDown,
+      handleDragStart
     } = this.props
 
     const styleName = isFocused
@@ -45,9 +46,9 @@ class NoteItemSimple extends React.Component {
         onClick={e => handleNoteClick(e, `${note.storage}-${note.key}`)}
         onContextMenu={e => handleNoteContextMenu(e, `${note.storage}-${note.key}`)}
         onKeyDown={handleKeyDown}
-        ref={rootEl => {
-          this.rootEl = rootEl
-        }}
+        ref={rootEl => { this.rootEl = rootEl }}
+        onDragStart={e => handleDragStart(e, note)}
+        draggable='true'
       >
         <div styleName='item-simple-title'>
           {note.type === 'SNIPPET_NOTE'
@@ -75,7 +76,8 @@ NoteItemSimple.propTypes = {
   }),
   handleNoteClick: PropTypes.func.isRequired,
   handleNoteContextMenu: PropTypes.func.isRequired,
-  handleKeyDown: PropTypes.func.isRequired
+  handleKeyDown: PropTypes.func.isRequired,
+  handleDragStart: PropTypes.func.isRequired
 }
 
 export default CSSModules(NoteItemSimple, styles)

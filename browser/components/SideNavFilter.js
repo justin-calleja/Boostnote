@@ -31,7 +31,9 @@ class SideNavFilter extends React.Component {
       handleAllNotesButtonClick,
       isStarredActive,
       handleStarredButtonClick,
-      handleKeyDown
+      handleKeyDown,
+      isTrashedActive,
+      handleTrashedButtonClick
     } = this.props
 
     const homeStyleName = isHomeActive && sideNavIsFocused
@@ -59,6 +61,12 @@ class SideNavFilter extends React.Component {
           <i className='fa fa-star fa-fw' />
           <span styleName='menu-button-label'>Starred</span>
         </button>
+        <button styleName={isTrashedActive ? 'menu-button--active' : 'menu-button'}
+          onClick={handleTrashedButtonClick}
+        >
+          <i className='fa fa-trash fa-fw' />
+          <span styleName='menu-button-label'>Trashed</span>
+        </button>
       </div>
     )
   }
@@ -70,7 +78,9 @@ SideNavFilter.propTypes = {
   isHomeActive: PropTypes.bool.isRequired,
   handleAllNotesButtonClick: PropTypes.func.isRequired,
   isStarredActive: PropTypes.bool.isRequired,
-  handleStarredButtonClick: PropTypes.func.isRequired
+  isTrashedActive: PropTypes.bool.isRequired,
+  handleStarredButtonClick: PropTypes.func.isRequired,
+  handleTrashdButtonClick: PropTypes.func.isRequired
 }
 
 export default CSSModules(SideNavFilter, styles)

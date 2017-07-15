@@ -9,6 +9,9 @@ import ee from 'browser/main/lib/eventEmitter'
 import ConfigManager from 'browser/main/lib/ConfigManager'
 import dataApi from 'browser/main/lib/dataApi'
 
+const { remote } = require('electron')
+const { dialog } = remote
+
 const OSX = window.process.platform === 'darwin'
 
 class TopBar extends React.Component {
@@ -18,7 +21,7 @@ class TopBar extends React.Component {
     this.state = {
       search: '',
       searchOptions: [],
-      searchPopupOpen: false
+      isSearching: false
     }
 
     this.newNoteHandler = () => {
@@ -41,7 +44,17 @@ class TopBar extends React.Component {
   }
 
   handleNewPostButtonClick (e) {
-    let { config } = this.props
+    let { config, location } = this.props
+
+    if (location.pathname === '/trashed') {
+      dialog.showMessageBox(remote.getCurrentWindow(), {
+        type: 'warning',
+        message: 'Cannot create new note',
+        detail: 'You cannot create new note in trash box.',
+        buttons: ['OK']
+      })
+      return
+    }
 
     switch (config.ui.defaultNote) {
       case 'MARKDOWN_NOTE':
@@ -87,79 +100,17 @@ class TopBar extends React.Component {
   }
 
   handleSearchChange (e) {
+    let { router } = this.context
+    router.push('/searched')
     this.setState({
       search: this.refs.searchInput.value
     })
   }
 
-  getOptions () {
-    let { data } = this.props
-    let { search } = this.state
-    let notes = data.noteMap.map((note) => note)
-    if (search.trim().length === 0) return []
-    let searchBlocks = search.split(' ')
-    searchBlocks.forEach((block) => {
-      if (block.match(/^!#.+/)) {
-        let tag = block.match(/^!#(.+)/)[1]
-        let regExp = new RegExp(_.escapeRegExp(tag), 'i')
-        notes = notes
-          .filter((note) => {
-            if (!_.isArray(note.tags)) return false
-            return note.tags.some((_tag) => {
-              return _tag.match(regExp)
-            })
-          })
-      } else if (block.match(/^!.+/)) {
-        let block = block.match(/^!(.+)/)[1]
-        let regExp = new RegExp(_.escapeRegExp(block), 'i')
-        notes = notes.filter((note) => {
-          if (!_.isArray(note.tags) || !note.tags.some((_tag) => {
-            return _tag.match(regExp)
-          })) {
-            return true
-          }
-          if (note.type === 'SNIPPET_NOTE') {
-            return !note.description.match(regExp)
-          } else if (note.type === 'MARKDOWN_NOTE') {
-            return !note.content.match(regExp)
-          }
-          return false
-        })
-      } else if (block.match(/^#.+/)) {
-        let tag = block.match(/#(.+)/)[1]
-        let regExp = new RegExp(_.escapeRegExp(tag), 'i')
-        notes = notes
-          .filter((note) => {
-            if (!_.isArray(note.tags)) return false
-            return note.tags.some((_tag) => {
-              return _tag.match(regExp)
-            })
-          })
-      } else {
-        let regExp = new RegExp(_.escapeRegExp(block), 'i')
-        notes = notes.filter((note) => {
-          if (_.isArray(note.tags) && note.tags.some((_tag) => {
-            return _tag.match(regExp)
-          })) {
-            return true
-          }
-          if (note.type === 'SNIPPET_NOTE') {
-            return note.description.match(regExp)
-          } else if (note.type === 'MARKDOWN_NOTE') {
-            return note.content.match(regExp)
-          }
-          return false
-        })
-      }
-    })
-
-    return notes
-  }
-
   handleOptionClick (uniqueKey) {
     return (e) => {
       this.setState({
-        searchPopupOpen: false
+        isSearching: false
       }, () => {
         let { location } = this.props
         hashHistory.push({
@@ -174,7 +125,7 @@ class TopBar extends React.Component {
 
   handleSearchFocus (e) {
     this.setState({
-      searchPopupOpen: true
+      isSearching: true
     })
   }
   handleSearchBlur (e) {
@@ -191,7 +142,7 @@ class TopBar extends React.Component {
     }
     if (!isStillFocused) {
       this.setState({
-        searchPopupOpen: false
+        isSearching: false
       })
     }
   }
@@ -251,7 +202,7 @@ class TopBar extends React.Component {
   }
 
   handleOnSearchFocus () {
-    if (this.state.searchPopupOpen) {
+    if (this.state.isSearching) {
       this.refs.search.childNodes[0].blur()
     } else {
       this.refs.search.childNodes[0].focus()
@@ -260,27 +211,6 @@ class TopBar extends React.Component {
 
   render () {
     let { config, style, data } = this.props
-    let searchOptionList = this.getOptions()
-      .map((note) => {
-        let storage = data.storageMap.get(note.storage)
-        let folder = _.find(storage.folders, {key: note.folder})
-        return <div styleName='control-search-optionList-item'
-          key={note.storage + '-' + note.key}
-          onClick={(e) => this.handleOptionClick(note.storage + '-' + note.key)(e)}
-        >
-          <div styleName='control-search-optionList-item-folder'
-            style={{borderColor: folder.color}}>
-            {folder.name}
-            <span styleName='control-search-optionList-item-folder-surfix'>in {storage.name}</span>
-          </div>
-          {note.type === 'SNIPPET_NOTE'
-            ? <i styleName='control-search-optionList-item-type' className='fa fa-code' />
-            : <i styleName='control-search-optionList-item-type' className='fa fa-file-text-o' />
-          }&nbsp;
-          {note.title}
-        </div>
-      })
-
     return (
       <div className='TopBar'
         styleName={config.isSideNavFolded ? 'root--expanded' : 'root'}
@@ -288,7 +218,6 @@ class TopBar extends React.Component {
       >
         <div styleName='control'>
           <div styleName='control-search'>
-            <i styleName='control-search-icon' className='fa fa-search fa-fw' />
             <div styleName='control-search-input'
               onFocus={(e) => this.handleSearchFocus(e)}
               onBlur={(e) => this.handleSearchBlur(e)}
@@ -301,15 +230,8 @@ class TopBar extends React.Component {
                 onChange={(e) => this.handleSearchChange(e)}
                 placeholder='Search'
                 type='text'
+                className='searchInput'
               />
-              {this.state.searchPopupOpen &&
-                <div styleName='control-search-optionList'>
-                  {searchOptionList.length > 0
-                    ? searchOptionList
-                    : <div styleName='control-search-optionList-empty'>Empty List</div>
-                  }
-                </div>
-              }
             </div>
             {this.state.search > 0 &&
               <button styleName='left-search-clearButton'
@@ -322,7 +244,7 @@ class TopBar extends React.Component {
           </div>
           <button styleName='control-newPostButton'
             onClick={(e) => this.handleNewPostButtonClick(e)}>
-            <i className='fa fa-plus' />
+            <i className='fa fa-pencil-square-o' />
             <span styleName='control-newPostButton-tooltip'>
               Make a Note {OSX ? '⌘' : '^'} + n
             </span>

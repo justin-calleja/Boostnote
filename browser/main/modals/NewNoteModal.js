@@ -4,6 +4,8 @@ import styles from './NewNoteModal.styl'
 import dataApi from 'browser/main/lib/dataApi'
 import { hashHistory } from 'react-router'
 import ee from 'browser/main/lib/eventEmitter'
+import ModalEscButton from 'browser/components/ModalEscButton'
+import AwsMobileAnalyticsConfig from 'browser/main/lib/AwsMobileAnalyticsConfig'
 
 class NewNoteModal extends React.Component {
   constructor (props) {
@@ -22,6 +24,8 @@ class NewNoteModal extends React.Component {
   }
 
   handleMarkdownNoteButtonClick (e) {
+    AwsMobileAnalyticsConfig.recordDynamitCustomEvent('ADD_MARKDOWN')
+    AwsMobileAnalyticsConfig.recordDynamitCustomEvent('ADD_ALLNOTE')
     let { storage, folder, dispatch, location } = this.props
     dataApi
       .createNote(storage, {
@@ -52,6 +56,8 @@ class NewNoteModal extends React.Component {
   }
 
   handleSnippetNoteButtonClick (e) {
+    AwsMobileAnalyticsConfig.recordDynamitCustomEvent('ADD_SNIPPET')
+    AwsMobileAnalyticsConfig.recordDynamitCustomEvent('ADD_ALLNOTE')
     let { storage, folder, dispatch, location } = this.props
 
     dataApi
@@ -102,11 +108,7 @@ class NewNoteModal extends React.Component {
         <div styleName='header'>
           <div styleName='title'>Make a Note</div>
         </div>
-        <button styleName='closeButton' onClick={(e) => this.handleCloseButtonClick(e)}>
-          <div styleName='close-mark'>×</div>
-          <div styleName='close-text'>esc</div>
-        </button>
-
+        <ModalEscButton handleEscButtonClick={(e) => this.handleCloseButtonClick(e)} />
         <div styleName='control'>
           <button styleName='control-button'
             onClick={(e) => this.handleMarkdownNoteButtonClick(e)}

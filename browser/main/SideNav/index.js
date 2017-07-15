@@ -42,6 +42,7 @@ class SideNav extends React.Component {
     this.handleToggleButtonClick = this.handleToggleButtonClick.bind(this)
     this.handleHomeButtonClick = this.handleHomeButtonClick.bind(this)
     this.handleStarredButtonClick = this.handleStarredButtonClick.bind(this)
+    this.handleTrashedButtonClick = this.handleTrashedButtonClick.bind(this)
     this.handleKeyDown = this.handleKeyDown.bind(this)
     this.handleBlur = this.handleBlur.bind(this)
     this.handleFocus = this.handleFocus.bind(this)
@@ -168,12 +169,18 @@ class SideNav extends React.Component {
     this.props.dispatch(unfocusSideNav())
   }
 
+  handleTrashedButtonClick (e) {
+    const { router } = this.context
+    router.push('/trashed')
+  }
+
   render () {
-    const { data, location, config, sideNavIsFocused } = this.props
+    const { data, location, config, sideNavIsFocused, dispatch } = this.props
 
     const isFolded = config.isSideNavFolded
     const isHomeActive = !!location.pathname.match('^' + basePaths.home + '$')
     const isStarredActive = !!location.pathname.match('^' + basePaths.starred + '$')
+    const isTrashedActive = !!location.pathname.match('^' + basePaths.trashed + '$')
 
     const storageList = Array.from(data.storageMap).map(([key, storage], index) => {
       return <StorageItem
@@ -187,6 +194,7 @@ class SideNav extends React.Component {
         location={location}
         isOpen={!this.state.closedStorageIndices.has(index)}
         isFolded={isFolded}
+        dispatch={dispatch}
       />
     })
 
@@ -204,8 +212,8 @@ class SideNav extends React.Component {
           <button styleName='top-menu'
             onClick={this.handleMenuButtonClick}
           >
-            <i className='fa fa-navicon fa-fw' />
-            <span styleName='top-menu-label'>Menu</span>
+            <i className='fa fa-wrench fa-fw' />
+            <span styleName='top-menu-label'>Preferences</span>
           </button>
         </div>
 
@@ -217,6 +225,8 @@ class SideNav extends React.Component {
           handleStarredButtonClick={this.handleStarredButtonClick}
           handleKeyDown={this.handleKeyDown}
           sideNavIsFocused={sideNavIsFocused}
+          handleTrashedButtonClick={this.handleTrashedButtonClick}
+          isTrashedActive={isTrashedActive}
         />
 
         <div styleName='storageList'>

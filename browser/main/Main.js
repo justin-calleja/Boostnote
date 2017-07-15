@@ -12,6 +12,8 @@ import ConfigManager from 'browser/main/lib/ConfigManager'
 import modal from 'browser/main/lib/modal'
 import InitModal from 'browser/main/modals/InitModal'
 import mixpanel from 'browser/main/lib/mixpanel'
+import mobileAnalytics from 'browser/main/lib/AwsMobileAnalyticsConfig'
+import eventEmitter from 'browser/main/lib/eventEmitter'
 
 function focused () {
   mixpanel.track('MAIN_FOCUSED')
@@ -21,14 +23,23 @@ class Main extends React.Component {
   constructor (props) {
     super(props)
 
+    if (process.env.NODE_ENV === 'production') {
+      mobileAnalytics.initAwsMobileAnalytics()
+    }
+
     let { config } = props
 
     this.state = {
       isRightSliderFocused: false,
       listWidth: config.listWidth,
       navWidth: config.navWidth,
-      isLeftSliderFocused: false
+      isLeftSliderFocused: false,
+      fullScreen: false,
+      noteDetailWidth: 0,
+      mainBodyWidth: 0
     }
+
+    this.toggleFullScreen = () => this.handleFullScreenButton()
   }
 
   getChildContext () {
@@ -63,11 +74,13 @@ class Main extends React.Component {
         }
       })
 
+    eventEmitter.on('editor:fullscreen', this.toggleFullScreen)
     window.addEventListener('focus', focused)
   }
 
   componentWillUnmount () {
     window.removeEventListener('focus', focused)
+    eventEmitter.off('editor:fullscreen', this.toggleFullScreen)
   }
 
   handleLeftSlideMouseDown (e) {
@@ -144,6 +157,34 @@ class Main extends React.Component {
     }
   }
 
+  handleFullScreenButton (e) {
+    this.setState({ fullScreen: !this.state.fullScreen }, () => {
+      const noteDetail = document.querySelector('.NoteDetail')
+      const noteList = document.querySelector('.NoteList')
+      const mainBody = document.querySelector('#main-body')
+
+      if (this.state.fullScreen) {
+        this.hideLeftLists(noteDetail, noteList, mainBody)
+      } else {
+        this.showLeftLists(noteDetail, noteList, mainBody)
+      }
+    })
+  }
+
+  hideLeftLists (noteDetail, noteList, mainBody) {
+    this.state.noteDetailWidth = noteDetail.style.left
+    this.state.mainBodyWidth = mainBody.style.left
+    noteDetail.style.left = '0px'
+    mainBody.style.left = '0px'
+    noteList.style.display = 'none'
+  }
+
+  showLeftLists (noteDetail, noteList, mainBody) {
+    noteDetail.style.left = this.state.noteDetailWidth
+    mainBody.style.left = this.state.mainBodyWidth
+    noteList.style.display = 'inline'
+  }
+
   render () {
     let { config } = this.props
 
@@ -174,6 +215,7 @@ class Main extends React.Component {
           </div>
         }
         <div styleName={config.isSideNavFolded ? 'body--expanded' : 'body'}
+          id='main-body'
           ref='body'
           style={{left: config.isSideNavFolded ? 44 : this.state.navWidth}}
         >

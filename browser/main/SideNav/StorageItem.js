@@ -8,6 +8,7 @@ import RenameFolderModal from 'browser/main/modals/RenameFolderModal'
 import dataApi from 'browser/main/lib/dataApi'
 import StorageItemChild from 'browser/components/StorageItem'
 import { basePaths } from 'browser/lib/utils/paths'
+import eventEmitter from 'browser/main/lib/eventEmitter'
 
 const { remote } = require('electron')
 const { Menu, MenuItem, dialog } = remote
@@ -142,8 +143,54 @@ class StorageItem extends React.Component {
     }
   }
 
+  handleDragEnter (e) {
+    e.dataTransfer.setData('defaultColor', e.target.style.backgroundColor)
+    e.target.style.backgroundColor = 'rgba(129, 130, 131, 0.08)'
+  }
+
+  handleDragLeave (e) {
+    e.target.style.opacity = '1'
+    e.target.style.backgroundColor = e.dataTransfer.getData('defaultColor')
+  }
+
+  handleDrop (e, storage, folder, dispatch, location) {
+    e.target.style.opacity = '1'
+    e.target.style.backgroundColor = e.dataTransfer.getData('defaultColor')
+    const noteData = JSON.parse(e.dataTransfer.getData('note'))
+    const newNoteData = Object.assign({}, noteData, {storage: storage, folder: folder.key})
+    if (folder.key === noteData.folder) return
+    dataApi
+     .createNote(storage.key, newNoteData)
+     .then((note) => {
+       dataApi
+        .deleteNote(noteData.storage, noteData.key)
+        .then((data) => {
+          let dispatchHandler = () => {
+            dispatch({
+              type: 'DELETE_NOTE',
+              storageKey: data.storageKey,
+              noteKey: data.noteKey
+            })
+          }
+          eventEmitter.once('list:moved', dispatchHandler)
+          eventEmitter.emit('list:next')
+        })
+         .catch((err) => {
+           console.error(err)
+         })
+       dispatch({
+         type: 'UPDATE_NOTE',
+         note: note
+       })
+       hashHistory.push({
+         pathname: location.pathname,
+         query: {key: `${note.storage}-${note.key}`}
+       })
+     })
+  }
+
   folderToStorageItemChild (folder) {
-    const { storage, location, isFolded, data, sideNavIsFocused, handleKeyDown } = this.props
+    const { storage, location, isFolded, data, sideNavIsFocused, handleKeyDown, dispatch } = this.props
     const { folderNoteMap } = data
 
     const isActive = !!(location.pathname === basePaths.storages + storage.key + basePaths.folders + folder.key)
@@ -162,6 +209,9 @@ class StorageItem extends React.Component {
         isFolded={isFolded}
         noteCount={noteCount}
         handleKeyDown={handleKeyDown}
+        handleDrop={(e) => this.handleDrop(e, storage, folder, dispatch, location)}
+        handleDragEnter={this.handleDragEnter}
+        handleDragLeave={this.handleDragLeave}
       />
     )
   }

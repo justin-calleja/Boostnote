@@ -40,7 +40,7 @@ const TagElementList = (tags) => {
  * @param {boolean} isFocused
  * @param {Object} note
  * @param {Function} handleNoteClick
- * @param {Function} handleNoteContextMenu
+ * @param {Function} handleDragStart
  * @param {string} dateDisplay
  */
 class NoteItem extends React.Component {
@@ -63,7 +63,8 @@ class NoteItem extends React.Component {
       dateDisplay,
       handleNoteClick,
       handleNoteContextMenu,
-      handleKeyDown
+      handleKeyDown,
+      handleDragStart
     } = this.props
 
     const styleName = isFocused
@@ -76,9 +77,9 @@ class NoteItem extends React.Component {
         onClick={e => handleNoteClick(e, `${note.storage}-${note.key}`)}
         onContextMenu={e => handleNoteContextMenu(e, `${note.storage}-${note.key}`)}
         onKeyDown={handleKeyDown}
-        ref={rootEl => {
-          this.rootEl = rootEl
-        }}
+        ref={rootEl => { this.rootEl = rootEl }}
+        onDragStart={e => handleDragStart(e, note)}
+        draggable='true'
       >
         <div styleName='item-wrapper'>
           {note.type === 'SNIPPET_NOTE'
@@ -91,7 +92,6 @@ class NoteItem extends React.Component {
               : <span styleName='item-title-empty'>Empty</span>
             }
           </div>
-
           <div styleName='item-bottom-time'>{dateDisplay}</div>
           {note.isStarred
             ? <i styleName='item-star' className='fa fa-star' /> : ''
@@ -120,11 +120,14 @@ NoteItem.propTypes = {
     type: PropTypes.string.isRequired,
     title: PropTypes.string.isrequired,
     tags: PropTypes.array,
-    isStarred: PropTypes.bool.isRequired
+    isStarred: PropTypes.bool.isRequired,
+    isTrashed: PropTypes.bool.isRequired
   }),
   handleNoteClick: PropTypes.func.isRequired,
   handleNoteContextMenu: PropTypes.func.isRequired,
-  handleKeyDown: PropTypes.func.isRequired
+  handleKeyDown: PropTypes.func.isRequired,
+  handleDragStart: PropTypes.func.isRequired,
+  handleDragEnd: PropTypes.func.isRequired
 }
 
 export default CSSModules(NoteItem, styles)

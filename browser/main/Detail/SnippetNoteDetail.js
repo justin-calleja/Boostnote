@@ -15,6 +15,12 @@ import StatusBar from '../StatusBar'
 import context from 'browser/lib/context'
 import ConfigManager from 'browser/main/lib/ConfigManager'
 import _ from 'lodash'
+import { findNoteTitle } from 'browser/lib/findNoteTitle'
+import AwsMobileAnalyticsConfig from 'browser/main/lib/AwsMobileAnalyticsConfig'
+import TrashButton from './TrashButton'
+import InfoButton from './InfoButton'
+import InfoPanel from './InfoPanel'
+import { formatDate } from 'browser/lib/date-formatter'
 
 function pass (name) {
   switch (name) {
@@ -51,7 +57,7 @@ class SnippetNoteDetail extends React.Component {
   }
 
   componentWillReceiveProps (nextProps) {
-    if (nextProps.note.key !== this.props.note.key) {
+    if (nextProps.note.key !== this.props.note.key && !this.isMovingNote) {
       if (this.saveQueue != null) this.saveNow()
       let nextNote = Object.assign({
         description: ''
@@ -66,7 +72,7 @@ class SnippetNoteDetail extends React.Component {
         snippets.forEach((snippet, index) => {
           this.refs['code-' + index].reload()
         })
-        this.refs.tags.reset()
+        if (this.refs.tags) this.refs.tags.reset()
       })
     }
   }
@@ -75,41 +81,13 @@ class SnippetNoteDetail extends React.Component {
     if (this.saveQueue != null) this.saveNow()
   }
 
-  findTitle (value) {
-    let splitted = value.split('\n')
-    let title = null
-
-    for (let i = 0; i < splitted.length; i++) {
-      let trimmedLine = splitted[i].trim()
-      if (trimmedLine.match(/^# .+/)) {
-        title = trimmedLine.substring(1, trimmedLine.length).trim()
-        break
-      }
-    }
-
-    if (title == null) {
-      for (let i = 0; i < splitted.length; i++) {
-        let trimmedLine = splitted[i].trim()
-        if (trimmedLine.length > 0) {
-          title = trimmedLine
-          break
-        }
-      }
-      if (title == null) {
-        title = ''
-      }
-    }
-
-    return title
-  }
-
   handleChange (e) {
     let { note } = this.state
 
-    note.tags = this.refs.tags.value
+    if (this.refs.tags) note.tags = this.refs.tags.value
     note.description = this.refs.description.value
     note.updatedAt = new Date()
-    note.title = this.findTitle(note.description)
+    note.title = findNoteTitle(note.description)
 
     this.setState({
       note
@@ -137,6 +115,7 @@ class SnippetNoteDetail extends React.Component {
           type: 'UPDATE_NOTE',
           note: note
         })
+        AwsMobileAnalyticsConfig.recordDynamitCustomEvent('EDIT_NOTE')
       })
   }
 
@@ -175,6 +154,7 @@ class SnippetNoteDetail extends React.Component {
 
   handleStarButtonClick (e) {
     let { note } = this.state
+    if (!note.isStarred) AwsMobileAnalyticsConfig.recordDynamitCustomEvent('ADD_STAR')
 
     note.isStarred = !note.isStarred
 
@@ -189,29 +169,61 @@ class SnippetNoteDetail extends React.Component {
 
   }
 
-  handleDeleteButtonClick (e) {
-    let index = dialog.showMessageBox(remote.getCurrentWindow(), {
+  handleTrashButtonClick (e) {
+    let { note } = this.state
+    const { isTrashed } = note
+
+    const popupMessage = isTrashed ? 'This work cannot be undone.' : 'Throw it into trashbox.'
+
+    let dialogueButtonIndex = dialog.showMessageBox(remote.getCurrentWindow(), {
       type: 'warning',
       message: 'Delete a note',
-      detail: 'This work cannot be undone.',
+      detail: popupMessage,
       buttons: ['Confirm', 'Cancel']
     })
-    if (index === 0) {
-      let { note, dispatch } = this.props
-      dataApi
-        .deleteNote(note.storage, note.key)
-        .then((data) => {
-          let dispatchHandler = () => {
-            dispatch({
-              type: 'DELETE_NOTE',
-              storageKey: data.storageKey,
-              noteKey: data.noteKey
-            })
-          }
-          ee.once('list:moved', dispatchHandler)
-          ee.emit('list:next')
+    if (dialogueButtonIndex === 0) {
+      if (!isTrashed) {
+        note.isTrashed = true
+
+        this.setState({
+          note
+        }, () => {
+          this.save()
         })
+      } else {
+        let { note, dispatch } = this.props
+        dataApi
+          .deleteNote(note.storage, note.key)
+          .then((data) => {
+            let dispatchHandler = () => {
+              dispatch({
+                type: 'DELETE_NOTE',
+                storageKey: data.storageKey,
+                noteKey: data.noteKey
+              })
+            }
+            ee.once('list:moved', dispatchHandler)
+          })
+      }
+      ee.emit('list:next')
     }
+  }
+
+  handleUndoButtonClick (e) {
+    let { note } = this.state
+
+    note.isTrashed = false
+
+    this.setState({
+      note
+    }, () => {
+      this.save()
+      ee.emit('list:next')
+    })
+  }
+
+  handleFullScreenButton (e) {
+    ee.emit('editor:fullscreen')
   }
 
   handleTabPlusButtonClick (e) {
@@ -452,9 +464,17 @@ class SnippetNoteDetail extends React.Component {
     this.refs['code-' + this.state.snippetIndex].focus()
   }
 
+  handleInfoButtonClick (e) {
+    const infoPanel = document.querySelector('.infoPanel')
+    if (infoPanel.style) infoPanel.style.display = infoPanel.style.display === 'none' ? 'inline' : 'none'
+  }
+
   render () {
-    let { data, config } = this.props
+    let { data, config, location } = this.props
     let { note } = this.state
+
+    let storageKey = note.storage
+    let folderKey = note.folder
 
     let editorFontSize = parseInt(config.editor.fontSize, 10)
     if (!(editorFontSize > 0 && editorFontSize < 101)) editorFontSize = 14
@@ -510,49 +530,71 @@ class SnippetNoteDetail extends React.Component {
       </div>
     })
 
+    let options = []
+    data.storageMap.forEach((storage, index) => {
+      storage.folders.forEach((folder) => {
+        options.push({
+          storage: storage,
+          folder: folder
+        })
+      })
+    })
+    let currentOption = options.filter((option) => option.storage.key === storageKey && option.folder.key === folderKey)[0]
+
+    const trashTopBar = <div styleName='info'>
+      <div styleName='info-left'>
+        <div styleName='info-left-top'>
+          <div styleName='info-left-top-folderSelect'>
+            <i styleName='undo-button'
+              className='fa fa-undo fa-fw'
+              onClick={(e) => this.handleUndoButtonClick(e)}
+            />
+          </div>
+        </div>
+      </div>
+      <div styleName='info-right'>
+        <TrashButton onClick={(e) => this.handleTrashButtonClick(e)} />
+      </div>
+    </div>
+
+    const detailTopBar = <div styleName='info'>
+      <div styleName='info-left'>
+        <StarButton styleName='info-left-button'
+          onClick={(e) => this.handleStarButtonClick(e)}
+          isActive={note.isStarred}
+        />
+        <div styleName='info-left-top'>
+          <FolderSelect styleName='info-left-top-folderSelect'
+            value={this.state.note.storage + '-' + this.state.note.folder}
+            ref='folder'
+            data={data}
+            onChange={(e) => this.handleFolderChange(e)}
+          />
+        </div>
+
+        <TagSelect
+          ref='tags'
+          value={this.state.note.tags}
+          onChange={(e) => this.handleChange(e)}
+        />
+      </div>
+      <div styleName='info-right'>
+        <TrashButton onClick={(e) => this.handleTrashButtonClick(e)} />
+        <button styleName='control-fullScreenButton'
+          onMouseDown={(e) => this.handleFullScreenButton(e)}
+        >
+          <i className='fa fa-arrows-alt' styleName='fullScreen-button' />
+        </button>
+      </div>
+    </div>
+
     return (
       <div className='NoteDetail'
         style={this.props.style}
         styleName='root'
         onKeyDown={(e) => this.handleKeyDown(e)}
       >
-        <div styleName='info'>
-          <div styleName='info-left'>
-            <StarButton styleName='info-left-button'
-              onClick={(e) => this.handleStarButtonClick(e)}
-              isActive={note.isStarred}
-            />
-            <div styleName='info-left-top'>
-              <FolderSelect styleName='info-left-top-folderSelect'
-                value={this.state.note.storage + '-' + this.state.note.folder}
-                ref='folder'
-                data={data}
-                onChange={(e) => this.handleFolderChange(e)}
-              />
-            </div>
-
-            <TagSelect
-              ref='tags'
-              value={this.state.note.tags}
-              onChange={(e) => this.handleChange(e)}
-            />
-          </div>
-          <div styleName='info-right'>
-            <button styleName='control-trashButton'
-              onClick={(e) => this.handleDeleteButtonClick(e)}
-            >
-              <svg height='14px' id='Capa_1' style={{enableBackground: 'new 0 0 753.23 753.23'}} width='14px' version='1.1' viewBox='0 0 753.23 753.23' x='0px' y='0px' xmlSpace='preserve'>
-                <g>
-                  <g id='_x34__19_'>
-                    <g>
-                      <path d='M494.308,659.077c12.993,0,23.538-10.546,23.538-23.539V353.077c0-12.993-10.545-23.539-23.538-23.539&#xA;&#x9;&#x9;&#x9;&#x9;s-23.538,10.545-23.538,23.539v282.461C470.77,648.531,481.314,659.077,494.308,659.077z M635.538,94.154h-141.23V47.077&#xA;&#x9;&#x9;&#x9;&#x9;C494.308,21.067,473.24,0,447.23,0H306c-26.01,0-47.077,21.067-47.077,47.077v47.077h-141.23&#xA;&#x9;&#x9;&#x9;&#x9;c-26.01,0-47.077,21.067-47.077,47.077v47.077c0,25.986,21.067,47.077,47.077,47.077v423.692&#xA;&#x9;&#x9;&#x9;&#x9;c0,51.996,42.157,94.153,94.154,94.153h329.539c51.996,0,94.153-42.157,94.153-94.153V235.385&#xA;&#x9;&#x9;&#x9;&#x9;c26.01,0,47.077-21.091,47.077-47.077V141.23C682.615,115.221,661.548,94.154,635.538,94.154z M306,70.615&#xA;&#x9;&#x9;&#x9;&#x9;c0-12.993,10.545-23.539,23.538-23.539h94.154c12.993,0,23.538,10.545,23.538,23.539v23.539c-22.809,0-141.23,0-141.23,0V70.615z&#xA;&#x9;&#x9;&#x9;&#x9; M588.461,659.077c0,25.986-21.066,47.076-47.076,47.076H211.846c-26.01,0-47.077-21.09-47.077-47.076V235.385h423.692V659.077z&#xA;&#x9;&#x9;&#x9;&#x9; M612,188.308H141.23c-12.993,0-23.538-10.545-23.538-23.539s10.545-23.539,23.538-23.539H612&#xA;&#x9;&#x9;&#x9;&#x9;c12.993,0,23.538,10.545,23.538,23.539S624.993,188.308,612,188.308z M258.923,659.077c12.993,0,23.539-10.546,23.539-23.539&#xA;&#x9;&#x9;&#x9;&#x9;V353.077c0-12.993-10.545-23.539-23.539-23.539s-23.539,10.545-23.539,23.539v282.461&#xA;&#x9;&#x9;&#x9;&#x9;C235.384,648.531,245.93,659.077,258.923,659.077z M376.615,659.077c12.993,0,23.538-10.546,23.538-23.539V353.077&#xA;&#x9;&#x9;&#x9;&#x9;c0-12.993-10.545-23.539-23.538-23.539s-23.539,10.545-23.539,23.539v282.461C353.077,648.531,363.622,659.077,376.615,659.077z' />
-                    </g>
-                  </g>
-                </g>
-              </svg>
-            </button>
-          </div>
-        </div>
+        {location.pathname === '/trashed' ? trashTopBar : detailTopBar}
 
         <div styleName='body'>
           <div styleName='description'>

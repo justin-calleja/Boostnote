@@ -13,6 +13,7 @@ import Result from 'folktale/data/result'
 export const basePaths = {
   home: '/home',
   starred: '/starred',
+  trashed: '/trashed',
   storages: '/storages/',
   folders: '/folders/'
 }

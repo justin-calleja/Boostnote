@@ -9,6 +9,11 @@ import ConfigManager from 'browser/main/lib/ConfigManager'
 import NoteItem from 'browser/components/NoteItem'
 import NoteItemSimple from 'browser/components/NoteItemSimple'
 import { focusSideNav, focusNoteList, unfocusNoteList } from 'browser/ducks/focus'
+import searchFromNotes from 'browser/lib/search'
+import fs from 'fs'
+import { hashHistory } from 'react-router'
+import markdown from 'browser/lib/markdown'
+import { findNoteTitle } from 'browser/lib/findNoteTitle'
 
 const { remote } = require('electron')
 const { Menu, MenuItem, dialog } = remote
@@ -41,6 +46,8 @@ class NoteList extends React.Component {
     this.alertIfSnippetHandler = () => {
       this.alertIfSnippet()
     }
+    this.importFromFileHandler = this.importFromFile.bind(this)
+    this.jumpNoteByHash = this.jumpNoteByHashHandler.bind(this)
 
     this.jumpToTopHandler = () => {
       this.jumpToTop()
@@ -62,6 +69,8 @@ class NoteList extends React.Component {
     ee.on('list:isMarkdownNote', this.alertIfSnippetHandler)
     ee.on('list:top', this.jumpToTopHandler)
     ee.on('list:jumpToTop', this.jumpToTopHandler)
+    ee.on('import:file', this.importFromFileHandler)
+    ee.on('list:jump', this.jumpNoteByHash)
   }
 
   componentWillReceiveProps (nextProps) {
@@ -83,6 +92,8 @@ class NoteList extends React.Component {
     ee.off('list:isMarkdownNote', this.alertIfSnippetHandler)
     ee.off('list:top', this.jumpToTopHandler)
     ee.off('list:jumpToTop', this.jumpToTopHandler)
+    ee.off('import:file', this.importFromFileHandler)
+    ee.off('list:jump', this.jumpNoteByHash)
   }
 
   componentDidUpdate (prevProps) {
@@ -172,6 +183,31 @@ class NoteList extends React.Component {
     ee.emit('list:moved')
   }
 
+  jumpNoteByHashHandler (event, noteHash) {
+    // first argument event isn't used.
+    if (this.notes === null || this.notes.length === 0) {
+      return
+    }
+
+    const { router } = this.context
+    const { location } = this.props
+
+    let targetIndex = _.findIndex(this.notes, (note) => {
+      return note.storage + '-' + note.key === noteHash
+    })
+
+    if (targetIndex < 0) targetIndex = 0
+
+    router.push({
+      pathname: location.pathname,
+      query: {
+        key: this.notes[targetIndex].storage + '-' + this.notes[targetIndex].key
+      }
+    })
+
+    ee.emit('list:moved')
+  }
+
   handleKeyDown (e) {
     if (e.keyCode === 65 && !e.shiftKey) {
       e.preventDefault()
@@ -197,6 +233,7 @@ class NoteList extends React.Component {
 
   getNotes () {
     let { data, params, location } = this.props
+    let { router } = this.context
 
     if (location.pathname.match(/\/home/)) {
       return data.noteMap.map((note) => note)
@@ -204,6 +241,19 @@ class NoteList extends React.Component {
 
     if (location.pathname.match(/\/starred/)) {
       return data.starredSet.toJS()
+        .map((uniqueKey) => data.noteMap.get(uniqueKey))
+    }
+
+    if (location.pathname.match(/\/searched/)) {
+      const searchInputText = document.getElementsByClassName('searchInput')[0].value
+      if (searchInputText === '') {
+        router.push('/home')
+      }
+      return searchFromNotes(this.props.data, searchInputText)
+    }
+
+    if (location.pathname.match(/\/trashed/)) {
+      return data.trashedSet.toJS()
         .map((uniqueKey) => data.noteMap.get(uniqueKey))
     }
 
@@ -240,49 +290,6 @@ class NoteList extends React.Component {
         key: uniqueKey
       }
     })
-  }
-
-  handleNoteContextMenu (e, uniqueKey) {
-    let menu = new Menu()
-    menu.append(new MenuItem({
-      label: 'Delete Note',
-      click: (e) => this.handleDeleteNote(e, uniqueKey)
-    }))
-    menu.popup()
-  }
-
-  handleDeleteNote (e, uniqueKey) {
-    let index = dialog.showMessageBox(remote.getCurrentWindow(), {
-      type: 'warning',
-      message: 'Delete a note',
-      detail: 'This work cannot be undone.',
-      buttons: ['Confirm', 'Cancel']
-    })
-    if (index === 0) {
-      let { dispatch, location } = this.props
-      let splitted = uniqueKey.split('-')
-      let storageKey = splitted.shift()
-      let noteKey = splitted.shift()
-
-      dataApi
-        .deleteNote(storageKey, noteKey)
-        .then((data) => {
-          let dispatchHandler = () => {
-            dispatch({
-              type: 'DELETE_NOTE',
-              storageKey: data.storageKey,
-              noteKey: data.noteKey
-            })
-          }
-
-          if (location.query.key === uniqueKey) {
-            ee.once('list:moved', dispatchHandler)
-            ee.emit('list:next')
-          } else {
-            dispatchHandler()
-          }
-        })
-    }
   }
 
   handleSortByChange (e) {
@@ -322,7 +329,8 @@ class NoteList extends React.Component {
       dialog.showMessageBox(remote.getCurrentWindow(), {
         type: 'warning',
         message: 'Sorry!',
-        detail: 'md/text import is available only a markdown note.'
+        detail: 'md/text import is available only a markdown note.',
+        buttons: ['OK', 'Cancel']
       })
     }
   }
@@ -344,6 +352,56 @@ class NoteList extends React.Component {
     })
   }
 
+  handleDragStart (e, note) {
+    const noteData = JSON.stringify(note)
+    e.dataTransfer.setData('note', noteData)
+  }
+
+  importFromFile () {
+    const { dispatch, location } = this.props
+
+    const options = {
+      filters: [
+        { name: 'Documents', extensions: ['md', 'txt'] }
+      ],
+      properties: ['openFile', 'multiSelections']
+    }
+
+    const targetIndex = _.findIndex(this.notes, (note) => {
+      return note !== null && `${note.storage}-${note.key}` === location.query.key
+    })
+
+    const storageKey = this.notes[targetIndex].storage
+    const folderKey = this.notes[targetIndex].folder
+
+    dialog.showOpenDialog(remote.getCurrentWindow(), options, (filepaths) => {
+      if (filepaths === undefined) return
+      filepaths.forEach((filepath) => {
+        fs.readFile(filepath, (err, data) => {
+          if (err) throw Error('File reading error: ', err)
+          const content = data.toString()
+          const newNote = {
+            content: content,
+            folder: folderKey,
+            title: markdown.strip(findNoteTitle(content)),
+            type: 'MARKDOWN_NOTE'
+          }
+          dataApi.createNote(storageKey, newNote)
+          .then((note) => {
+            dispatch({
+              type: 'UPDATE_NOTE',
+              note: note
+            })
+            hashHistory.push({
+              pathname: location.pathname,
+              query: {key: `${note.storage}-${note.key}`}
+            })
+          })
+        })
+      })
+    })
+  }
+
   handleFocus () {
     this.props.dispatch(focusNoteList())
   }
@@ -353,16 +411,18 @@ class NoteList extends React.Component {
   }
 
   render () {
-    let { notes } = this.props
-    const { location, config, noteListIsFocused } = this.props
-
-    const sortFunc = config.sortBy === 'CREATED_AT'
+    let { location, notes, config, dispatch } = this.props
+    let sortFunc = config.sortBy === 'CREATED_AT'
       ? sortByCreatedAt
       : config.sortBy === 'ALPHABETICAL'
       ? sortByAlphabetical
       : sortByUpdatedAt
     this.notes = notes = this.getNotes()
       .sort(sortFunc)
+      .filter((note) => {
+        // this is for the trash box
+        if (note.isTrashed !== true || location.pathname === '/trashed') return true
+      })
 
     const noteList = notes
       .map(note => {
@@ -388,7 +448,7 @@ class NoteList extends React.Component {
               dateDisplay={dateDisplay}
               key={key}
               handleNoteClick={this.handleNoteClick.bind(this)}
-              handleNoteContextMenu={this.handleNoteContextMenu.bind(this)}
+              handleDragStart={this.handleDragStart.bind(this)}
             />
           )
         }
@@ -401,7 +461,7 @@ class NoteList extends React.Component {
             note={note}
             key={key}
             handleNoteClick={this.handleNoteClick.bind(this)}
-            handleNoteContextMenu={this.handleNoteContextMenu.bind(this)}
+            handleDragStart={this.handleDragStart.bind(this)}
           />
         )
       })
@@ -425,22 +485,24 @@ class NoteList extends React.Component {
               <option value='ALPHABETICAL'>Alphabetical</option>
             </select>
           </div>
-          <button styleName={config.listStyle === 'DEFAULT'
-              ? 'control-button--active'
-              : 'control-button'
-            }
-            onClick={(e) => this.handleListStyleButtonClick(e, 'DEFAULT')}
-          >
-            <i className='fa fa-th-large' />
-          </button>
-          <button styleName={config.listStyle === 'SMALL'
-              ? 'control-button--active'
-              : 'control-button'
-            }
-            onClick={(e) => this.handleListStyleButtonClick(e, 'SMALL')}
-          >
-            <i className='fa fa-list-ul' />
-          </button>
+          <div styleName='control-button-area'>
+            <button styleName={config.listStyle === 'DEFAULT'
+                ? 'control-button--active'
+                : 'control-button'
+              }
+              onClick={(e) => this.handleListStyleButtonClick(e, 'DEFAULT')}
+            >
+              <i className='fa fa-th-large' />
+            </button>
+            <button styleName={config.listStyle === 'SMALL'
+                ? 'control-button--active'
+                : 'control-button'
+              }
+              onClick={(e) => this.handleListStyleButtonClick(e, 'SMALL')}
+            >
+              <i className='fa fa-list-ul' />
+            </button>
+          </div>
         </div>
         <div styleName='list'
           ref={list => { this.list = list }}

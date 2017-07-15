@@ -13,7 +13,8 @@ function defaultDataMap () {
     starredSet: new Set(),
     storageNoteMap: new Map(),
     folderNoteMap: new Map(),
-    tagNoteMap: new Map()
+    tagNoteMap: new Map(),
+    trashedSet: new Set()
   }
 }
 
@@ -26,13 +27,18 @@ function data (state = defaultDataMap(), action) {
         state.storageMap.set(storage.key, storage)
       })
 
-      action.notes.forEach((note) => {
+      action.notes.some((note) => {
+        if (note === undefined) return true
         let uniqueKey = note.storage + '-' + note.key
         let folderKey = note.storage + '-' + note.folder
         state.noteMap.set(uniqueKey, note)
 
         if (note.isStarred) {
           state.starredSet.add(uniqueKey)
+        }
+
+        if (note.isTrashed) {
+          state.trashedSet.add(uniqueKey)
         }
 
         let storageNoteList = state.storageNoteMap.get(note.storage)
@@ -76,6 +82,15 @@ function data (state = defaultDataMap(), action) {
             state.starredSet.add(uniqueKey)
           } else {
             state.starredSet.delete(uniqueKey)
+          }
+        }
+
+        if (oldNote == null || oldNote.isTrashed !== note.isTrashed) {
+          state.trashedSet = new Set(state.trashedSet)
+          if (note.isTrashed) {
+            state.trashedSet.add(uniqueKey)
+          } else {
+            state.trashedSet.delete(uniqueKey)
           }
         }
 
@@ -164,6 +179,11 @@ function data (state = defaultDataMap(), action) {
             state.starredSet.delete(originKey)
           }
 
+          if (originNote.isTrashed) {
+            state.trashedSet = new Set(state.trashedSet)
+            state.trashedSet.delete(originKey)
+          }
+
           // From storageNoteMap
           state.storageNoteMap = new Map(state.storageNoteMap)
           let noteSet = state.storageNoteMap.get(originNote.storage)
@@ -197,6 +217,15 @@ function data (state = defaultDataMap(), action) {
             state.starredSet.add(uniqueKey)
           } else {
             state.starredSet.delete(uniqueKey)
+          }
+        }
+
+        if (oldNote == null || oldNote.isTrashed !== note.isTrashed) {
+          state.trashedSet = new Set(state.trashedSet)
+          if (note.isTrashed) {
+            state.trashedSet.add(uniqueKey)
+          } else {
+            state.trashedSet.delete(uniqueKey)
           }
         }
 
@@ -284,6 +313,11 @@ function data (state = defaultDataMap(), action) {
             state.starredSet.delete(uniqueKey)
           }
 
+          if (targetNote.isTrashed) {
+            state.trashedSet = new Set(state.trashedSet)
+            state.trashedSet.delete(uniqueKey)
+          }
+
           // From folderNoteMap
           let folderKey = targetNote.storage + '-' + targetNote.folder
           state.folderNoteMap = new Map(state.folderNoteMap)
@@ -347,6 +381,11 @@ function data (state = defaultDataMap(), action) {
               if (note.isStarred) {
                 state.starredSet = new Set(state.starredSet)
                 state.starredSet.delete(noteKey)
+              }
+
+              if (note.isTrashed) {
+                state.trashedSet = new Set(state.trashedSet)
+                state.trashedSet.delete(noteKey)
               }
 
               // Delete key from tag map
