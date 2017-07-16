@@ -1,4 +1,4 @@
-import Result from 'folktale/data/result'
+import Result from 'folktale/result'
 
 /**
  * @typedef {Object} PathInfo

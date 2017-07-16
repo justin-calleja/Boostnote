@@ -411,7 +411,8 @@ class NoteList extends React.Component {
   }
 
   render () {
-    let { location, notes, config, dispatch } = this.props
+    let notes = this.props.notes
+    const { location, config, dispatch, noteListIsFocused } = this.props
     let sortFunc = config.sortBy === 'CREATED_AT'
       ? sortByCreatedAt
       : config.sortBy === 'ALPHABETICAL'
