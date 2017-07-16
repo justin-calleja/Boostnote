@@ -200,6 +200,7 @@ class Main extends React.Component {
             'dispatch',
             'data',
             'config',
+            'focus',
             'location'
           ])}
           width={this.state.navWidth}
