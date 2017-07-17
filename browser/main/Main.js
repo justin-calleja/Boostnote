@@ -234,6 +234,7 @@ class Main extends React.Component {
               'data',
               'config',
               'params',
+              'focus',
               'location'
             ])}
           />
