@@ -1,4 +1,5 @@
 import React, { PropTypes } from 'react'
+import { hashHistory } from 'react-router'
 import CSSModules from 'browser/lib/CSSModules'
 import styles from './SideNav.styl'
 import { openModal } from 'browser/main/lib/modal'
@@ -6,25 +7,60 @@ import PreferencesModal from '../modals/PreferencesModal'
 import ConfigManager from 'browser/main/lib/ConfigManager'
 import StorageItem from './StorageItem'
 import SideNavFilter from 'browser/components/SideNavFilter'
+import { focusSideNav, unfocusSideNav } from 'browser/ducks/focus'
+import { basePaths } from 'browser/lib/utils/paths'
+import movementHandlersInit from './movementHandlers'
+
+const movementHandlers = movementHandlersInit()
+
+/**
+ * A movementHandlers function will give back a path to go to or an error.
+ * handlePathOrError is used to keep the handling of these 2 cases DRY.
+ * @type {Object}
+ */
+const handlePathOrError = {
+  Ok ({ value }) {
+    hashHistory.push(value)
+  },
+  Error ({ value }) {
+    const error = value
+    console.log(error.message)
+  }
+}
 
 class SideNav extends React.Component {
+  constructor (props) {
+    super(props)
+
+    this.state = {
+      closedStorageIndices: new Set()
+    }
+
+    this.handleMenuButtonClick = this.handleMenuButtonClick.bind(this)
+    this.handleToggleButtonClick = this.handleToggleButtonClick.bind(this)
+    this.handleHomeButtonClick = this.handleHomeButtonClick.bind(this)
+    this.handleStarredButtonClick = this.handleStarredButtonClick.bind(this)
+    this.handleKeyDown = this.handleKeyDown.bind(this)
+    this.handleBlur = this.handleBlur.bind(this)
+    this.handleFocus = this.handleFocus.bind(this)
+    this.toggleStorageOpenness = this.toggleStorageOpenness.bind(this)
+  }
+
   // TODO: should not use electron stuff v0.7
   handleMenuButtonClick (e) {
     openModal(PreferencesModal)
   }
 
   handleHomeButtonClick (e) {
-    let { router } = this.context
-    router.push('/home')
+    hashHistory.push(basePaths.home)
   }
 
   handleStarredButtonClick (e) {
-    let { router } = this.context
-    router.push('/starred')
+    hashHistory.push(basePaths.starred)
   }
 
   handleToggleButtonClick (e) {
-    let { dispatch, config } = this.props
+    const { dispatch, config } = this.props
 
     ConfigManager.set({isSideNavFolded: !config.isSideNavFolded})
     dispatch({
@@ -33,40 +69,78 @@ class SideNav extends React.Component {
     })
   }
 
+  toggleStorageOpenness (storageIndex) {
+    const closedStorageIndices = this.state.closedStorageIndices
+    if (closedStorageIndices.has(storageIndex)) {
+      closedStorageIndices.delete(storageIndex)
+    } else {
+      closedStorageIndices.add(storageIndex)
+    }
+
+    this.setState({
+      closedStorageIndices: new Set(closedStorageIndices)
+    })
+  }
+
+  handleKeyDown (e) {
+    e.preventDefault()
+    if (e.key === 'ArrowUp' || (e.ctrlKey && e.key === 'p')) {
+      movementHandlers.up(this).matchWith(handlePathOrError)
+    } else if (e.key === 'ArrowDown' || (e.ctrlKey && e.key === 'n')) {
+      movementHandlers.down(this).matchWith(handlePathOrError)
+    }
+  }
+
+  handleFocus () {
+    this.props.dispatch(focusSideNav())
+  }
+
+  handleBlur () {
+    this.props.dispatch(unfocusSideNav())
+  }
+
   handleTrashedButtonClick (e) {
-    let { router } = this.context
+    const { router } = this.context
     router.push('/trashed')
   }
 
   render () {
-    let { data, location, config, dispatch } = this.props
+    const { data, location, config, focus, dispatch } = this.props
 
-    let isFolded = config.isSideNavFolded
-    let isHomeActive = !!location.pathname.match(/^\/home$/)
-    let isStarredActive = !!location.pathname.match(/^\/starred$/)
-    let isTrashedActive = !!location.pathname.match(/^\/trashed$/)
+    const isFolded = config.isSideNavFolded
+    const isHomeActive = !!location.pathname.match('^' + basePaths.home + '$')
+    const isStarredActive = !!location.pathname.match('^' + basePaths.starred + '$')
+    const isTrashedActive = !!location.pathname.match('^' + basePaths.trashed + '$')
 
-    let storageList = data.storageMap.map((storage, key) => {
+    const storageList = Array.from(data.storageMap).map(([key, storage], index) => {
       return <StorageItem
         key={storage.key}
+        index={index}
+        handleKeyDown={this.handleKeyDown}
+        toggleStorageOpenness={this.toggleStorageOpenness}
+        focus={focus}
         storage={storage}
         data={data}
         location={location}
+        isOpen={!this.state.closedStorageIndices.has(index)}
         isFolded={isFolded}
         dispatch={dispatch}
       />
     })
-    let style = {}
+
+    const style = {}
     if (!isFolded) style.width = this.props.width
     return (
       <div className='SideNav'
+        onBlur={this.handleBlur}
+        onFocus={this.handleFocus}
         styleName={isFolded ? 'root--folded' : 'root'}
         tabIndex='1'
         style={style}
       >
         <div styleName='top'>
           <button styleName='top-menu'
-            onClick={(e) => this.handleMenuButtonClick(e)}
+            onClick={this.handleMenuButtonClick}
           >
             <i className='fa fa-wrench fa-fw' />
             <span styleName='top-menu-label'>Preferences</span>
@@ -76,11 +150,13 @@ class SideNav extends React.Component {
         <SideNavFilter
           isFolded={isFolded}
           isHomeActive={isHomeActive}
-          handleAllNotesButtonClick={(e) => this.handleHomeButtonClick(e)}
           isStarredActive={isStarredActive}
           isTrashedActive={isTrashedActive}
-          handleStarredButtonClick={(e) => this.handleStarredButtonClick(e)}
-          handleTrashedButtonClick={(e) => this.handleTrashedButtonClick(e)}
+          handleAllNotesButtonClick={this.handleHomeButtonClick}
+          handleStarredButtonClick={this.handleStarredButtonClick}
+          handleTrashedButtonClick={this.handleTrashedButtonClick}
+          handleKeyDown={this.handleKeyDown}
+          focus={focus}
         />
 
         <div styleName='storageList'>
@@ -89,7 +165,7 @@ class SideNav extends React.Component {
           )}
         </div>
         <button styleName='navToggle'
-          onClick={(e) => this.handleToggleButtonClick(e)}
+          onClick={this.handleToggleButtonClick}
         >
           {isFolded
             ? <i className='fa fa-angle-double-right' />
@@ -111,6 +187,7 @@ SideNav.propTypes = {
   config: PropTypes.shape({
     isSideNavFolded: PropTypes.bool
   }),
+  focus: PropTypes.object,
   location: PropTypes.shape({
     pathname: PropTypes.string
   })
