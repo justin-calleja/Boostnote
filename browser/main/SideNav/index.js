@@ -8,7 +8,7 @@ import PreferencesModal from '../modals/PreferencesModal'
 import ConfigManager from 'browser/main/lib/ConfigManager'
 import StorageItem from './StorageItem'
 import SideNavFilter from 'browser/components/SideNavFilter'
-import { focusSideNav, unfocusSideNav } from 'browser/ducks/focus'
+import { focusSideNav, unfocusSideNav, focusNoteList } from 'browser/ducks/focus'
 import { basePaths, parsePathname } from 'browser/lib/utils/paths'
 import movementHandlersInit from './movementHandlers'
 import findStorage from 'browser/lib/utils/findStorage'
@@ -154,6 +154,9 @@ class SideNav extends React.Component {
     } else if ((e.shiftKey && e.key === 'ArrowRight') || (e.ctrlKey && e.key === 'e')) {
       // OPEN_STORAGE
       this.openStorage()
+    } else if (e.key === 'ArrowRight' || (e.ctrlKey && e.key === 'f')) {
+      this.props.dispatch(unfocusSideNav())
+      this.props.dispatch(focusNoteList())
     }
   }
 
